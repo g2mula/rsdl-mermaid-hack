@@ -43,36 +43,105 @@ function getRsdl(rsdlText) {
       return { errors: json.$$errors };
     }
 
-    return { rsdljs: json };
+    var normalized = getNormalizedRsdl(json);
+
+    return { rsdljs: normalized };
   } catch (e) {
     return { errors: [e] };
   }
 }
 
+function getNormalizedRsdl(rsdljs) {
+  const copy = JSON.parse(JSON.stringify(rsdljs));
+  const model = copy.Model;
+  const edmOperations = Object.entries(model).filter(([key, edmElement]) =>
+    Array.isArray(edmElement)
+  );
+  edmOperations.forEach(([key, operations]) => {
+    delete model[key];
+    operations.forEach((op) => {
+      // TODO: Remove Hacks
+      const bindingParameter = op.$Parameter[0];
+      const typeName = bindingParameter.$Type.split('.').pop();
+      const type = model[typeName];
+      if (type) {
+        type.$Operations = type.$Operations || [];
+        op.$Name = key;
+        type.$Operations.push(op);
+      }
+    });
+  });
+
+  return copy;
+}
+
+function getEntityType(edmElement) {}
+
 function getMermaid(rsdljs) {
-  return `
-classDiagram
-    Animal <|-- Duck
-    Animal <|-- Fish
-    Animal <|-- Zebra
-    Animal : int age
-    Animal : String gender
-    Animal: isMammal()
-    Animal: mate()
-    class Duck{
-      String beakColor
-      swim()
-      quack()
-    }
-    class Fish{
-      int sizeInFeet
-      canEat()
-    }
-    class Zebra{
-      bool is_wild
-      run()
-    }
-`.trim();
+  if (!rsdljs.Model) {
+    return 'classDiagram\nclass None';
+  }
+
+  const model = Object.entries(rsdljs.Model).map(([key, element]) =>
+    getMermaidElement(key, element)
+  );
+
+  return ['classDiagram', ...model].join('\n');
+}
+
+function getMermaidElement(name, edmElement) {
+  const contents = getElementContents(edmElement);
+  return `\tclass ${name} {\n\t\t${contents}\n\t}`;
+}
+
+function getElementContents(edmElement) {
+  switch (edmElement.$Kind) {
+    case 'EntityType':
+      return getEntityTypeContents(edmElement);
+    case 'ComplexType':
+      return getComplexTypeContents(edmElement);
+    case 'EntityContainer':
+      return getEntityContainerContents(edmElement);
+    default:
+      return '';
+  }
+}
+
+function getEntityTypeContents(entityType) {
+  return getStructuredTypeContents(entityType);
+}
+
+function getComplexTypeContents(complexType) {
+  return getStructuredTypeContents(complexType);
+}
+
+function getStructuredTypeContents(structuredType) {
+  return getPropertiesContents(structuredType);
+}
+
+function getEntityContainerContents(entityContainer) {
+  return getPropertiesContents(entityContainer);
+}
+
+function getPropertiesContents(edmType) {
+  return Object.entries(edmType)
+    .filter(([name, _]) => name[0] !== '$')
+    .map(([name, typeDef]) => getProperty(name, typeDef))
+    .join('\n\t\t');
+}
+
+function getProperty(name, typeDef) {
+  // TODO: Remove hack
+  let type = (typeDef.$Type || 'String').split('.').pop();
+  if (typeDef.$Nullable) {
+    type = type + '?';
+  }
+
+  if (typeDef.$Collection) {
+    type = `[${type}]`;
+  }
+
+  return `${name}: ${type}`;
 }
 
 async function renderMermaid(mermaidText) {
