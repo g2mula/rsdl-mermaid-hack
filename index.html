@@ -27,6 +27,15 @@ type company
     ceo: employee
 }
 
+enum employmentType {
+    salaried
+    hourly
+}
+
+type manager extends employee {
+    reports: [employee]
+}
+
 type employee
 {
     key id: Integer 

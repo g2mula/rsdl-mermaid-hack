@@ -8,11 +8,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
   const diagramContainer = document.getElementById('diagramContainer');
 
-  mermaid.initialize({
-    securityLevel: 'loose',
-  });
+  convertButton.addEventListener('click', convert);
 
-  convertButton.addEventListener('click', async function () {
+  function convert() {
     try {
       const source = rsdlTextArea.value;
       const { rsdljs, errors } = getRsdl(source);
@@ -24,21 +22,46 @@ document.addEventListener('DOMContentLoaded', function () {
 
       console.info(rsdljs);
 
+      window.__RSDLJS__ = rsdljs;
+
       const mermaidText = getMermaid(rsdljs);
       mermaidTextArea.value = mermaidText;
 
-      const mermaidDiagram = await renderMermaid(mermaidText);
+      diagramContainer.innerHTML = mermaidText;
+      delete diagramContainer.dataset.processed;
 
-      diagramContainer.innerHTML = mermaidDiagram;
+      mermaid.initialize({
+        securityLevel: 'loose',
+        logLevel: 1,
+      });
+
+      mermaid.init(undefined, diagramContainer);
     } catch (e) {
       console.error(e);
     }
-  });
+  }
+
+  convert();
 });
+
+window.selectElement = function (name) {
+  const rsdljs = window.__RSDLJS__;
+  if (!rsdljs || !rsdljs.Model) {
+    return;
+  }
+
+  const element = rsdljs.Model[name];
+  if (!element) {
+    return;
+  }
+
+  console.log(element);
+  // TODO: Popup editor.
+};
 
 function getRsdl(rsdlText) {
   try {
-    const json = parse(rsdlText, (_) => (_) => '');
+    const json = parse(rsdlText, () => () => '');
     if (json.$$errors) {
       return { errors: json.$$errors };
     }
@@ -75,18 +98,65 @@ function getNormalizedRsdl(rsdljs) {
   return copy;
 }
 
-function getEntityType(edmElement) {}
-
 function getMermaid(rsdljs) {
   if (!rsdljs.Model) {
     return 'classDiagram\nclass None';
   }
 
-  const model = Object.entries(rsdljs.Model).map(([key, element]) =>
+  const entries = Object.entries(rsdljs.Model);
+  const model = entries.map(([key, element]) =>
     getMermaidElement(key, element)
   );
 
-  return ['classDiagram', ...model].join('\n');
+  const relationships = entries
+    .reduce((accumulator, [elementName, element]) => {
+      return Object.entries(element).reduce(
+        (accumlator2, [propertyName, propertyType]) => {
+          if (propertyType.$Kind === 'NavigationProperty') {
+            accumlator2.push({
+              source: elementName,
+              target: propertyType.$Type.split('.').pop(),
+              name: propertyName,
+              isContained: propertyType.$ContainsTarget === true,
+            });
+          }
+
+          if (propertyName === '$BaseType') {
+            accumlator2.push({
+              source: elementName,
+              target: propertyType.split('.').pop(),
+              isInheritance: true,
+            });
+          }
+
+          return accumlator2;
+        },
+        accumulator
+      );
+    }, [])
+    .map((relation) => {
+      let definition = '--o';
+      if (relation.isContained) {
+        definition = '--*';
+      } else if (relation.isInheritance) {
+        definition = '--|>';
+      }
+
+      const text = `\t${relation.source} ${definition} ${relation.target}`;
+      if (relation.isInheritance || !relation.name) {
+        return text;
+      }
+
+      return `${text} : ${relation.name}`;
+    });
+
+  const elementSelects = entries.map(
+    ([key, ..._]) => `\tclick ${key} call selectElement(${key}) "${key}"`
+  );
+
+  return ['classDiagram', ...model, ...relationships, ...elementSelects].join(
+    '\n'
+  );
 }
 
 function getMermaidElement(name, edmElement) {
@@ -96,6 +166,8 @@ function getMermaidElement(name, edmElement) {
 
 function getElementContents(edmElement) {
   switch (edmElement.$Kind) {
+    case 'EnumType':
+      return getEnumType(edmElement);
     case 'EntityType':
       return getEntityTypeContents(edmElement);
     case 'ComplexType':
@@ -105,6 +177,13 @@ function getElementContents(edmElement) {
     default:
       return '';
   }
+}
+
+function getEnumType(enumType) {
+  return Object.entries(enumType)
+    .filter(([name, _]) => name[0] !== '$')
+    .map(([name, value]) => `${name}: ${value}`)
+    .join('\n\t\t');
 }
 
 function getEntityTypeContents(entityType) {
@@ -176,10 +255,4 @@ function getType(typeDef) {
   }
 
   return type;
-}
-
-async function renderMermaid(mermaidText) {
-  return new Promise((resolve) => {
-    mermaid.mermaidAPI.render('mermaid-rsdl', mermaidText, resolve);
-  });
 }
