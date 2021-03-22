@@ -1,1 +1,1 @@
-# rsdl-mermaid-hack
+# rsdl-mermaid
