@@ -116,7 +116,10 @@ function getComplexTypeContents(complexType) {
 }
 
 function getStructuredTypeContents(structuredType) {
-  return getPropertiesContents(structuredType);
+  const properties = getPropertiesContents(structuredType);
+  const operations = getOperationsContents(structuredType.$Operations);
+
+  return properties + operations;
 }
 
 function getEntityContainerContents(entityContainer) {
@@ -130,7 +133,38 @@ function getPropertiesContents(edmType) {
     .join('\n\t\t');
 }
 
+function getOperationsContents(operations) {
+  if (!operations || !operations.length) {
+    return '';
+  }
+
+  return (
+    '\n\t\t' +
+    operations
+      .map(
+        (op) =>
+          `${op.$Name} (${getOperationParameters(op.$Parameter.slice(1))}) ${
+            op.$ReturnType ? getType(op.$ReturnType) : ''
+          }`
+      )
+      .join('\n\t\t')
+  );
+}
+
+function getOperationParameters(inputParameters) {
+  if (!inputParameters || !inputParameters.length) {
+    return '';
+  }
+
+  return inputParameters.map((p) => getProperty(p.$Name, p)).join(', ');
+}
+
 function getProperty(name, typeDef) {
+  const type = getType(typeDef);
+  return `${name}∶ ${type}`;
+}
+
+function getType(typeDef) {
   // TODO: Remove hack
   let type = (typeDef.$Type || 'String').split('.').pop();
   if (typeDef.$Nullable) {
@@ -141,7 +175,7 @@ function getProperty(name, typeDef) {
     type = `[${type}]`;
   }
 
-  return `${name}: ${type}`;
+  return type;
 }
 
 async function renderMermaid(mermaidText) {
