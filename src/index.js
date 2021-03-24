@@ -1,9 +1,15 @@
 import { parse } from 'rsdl-js';
 import mermaid from 'mermaid';
 
-import { enumTypeFunction, enumMemberFunction } from './templates';
-import { template } from 'handlebars';
+import {
+  enumTypeFunction,
+  enumMemberFunction,
+  structuredPropertyFunction,
+  structuredTypeFunction,
+  operationFunction,
+} from './templates';
 
+const $TypeOptions = ['String', 'Int32', 'Boolean'];
 window.__APP__ = window.__APP__ || {};
 
 document.addEventListener('DOMContentLoaded', function () {
@@ -91,17 +97,17 @@ window.selectElement = function (name) {
   modelModal.show();
 };
 
-window.addEnumMember = function(button) {
+window.addEnumMember = function (button) {
   const template = document.createElement('template');
   template.innerHTML = enumMemberFunction().trim();
   const member = template.content.firstChild;
   button.insertAdjacentElement('beforebegin', member);
-}
+};
 
-window.removeEnumMember = function(button) {
+window.removeEnumMember = function (button) {
   const member = button.parentNode;
   member.parentNode.removeChild(member);
-}
+};
 
 function getEditor(model) {
   switch (model.$Kind) {
@@ -109,6 +115,7 @@ function getEditor(model) {
       return getEnumEditor(model);
     case 'ComplexType':
     case 'EntityType':
+      return getStructuredEditor(model);
     case 'EntityContainer':
     default:
       return `<pre>${JSON.stringify(model, null, 2)}</pre>`;
@@ -121,6 +128,24 @@ function getEnumEditor(enumType) {
     .map(([name, _]) => name);
 
   return enumTypeFunction({ ...enumType, enumMembers });
+}
+
+function getStructuredEditor(structuredType) {
+  const $Properties = Object.entries(structuredType)
+    .filter(([name, _]) => name[0] !== '$')
+    .map(([name, property]) => ({
+      name,
+      isPk: structuredType.$Key && structuredType.$Key.indexOf(name) >= 0,
+      type: (property.$Type || 'String').split('.').pop(),
+      isCollection: property.$Collection,
+      isNullable: property.$Nullable,
+    }));
+
+  return structuredTypeFunction({
+    ...structuredType,
+    $Properties,
+    $TypeOptions,
+  });
 }
 
 function getRsdl(rsdlText) {
