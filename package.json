@@ -20,9 +20,10 @@
   "homepage": "https://github.com/g2mula/rsdl-mermaid-hack#readme",
   "devDependencies": {
     "mermaid": "^8.9.2",
-    "parcel": "^2.0.0-beta.2"
+    "parcel-bundler": "^1.12.5"
   },
   "dependencies": {
+    "handlebars": "^4.7.7",
     "rsdl-js": "^0.2.0"
   }
 }

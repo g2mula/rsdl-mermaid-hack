@@ -1,16 +1,28 @@
 import { parse } from 'rsdl-js';
 import mermaid from 'mermaid';
 
+import { enumTypeFunction, enumMemberFunction } from './templates';
+import { template } from 'handlebars';
+
+window.__APP__ = window.__APP__ || {};
+
 document.addEventListener('DOMContentLoaded', function () {
   const convertButton = document.getElementById('convertButton');
   const rsdlTextArea = document.getElementById('rsdlTextArea');
   const mermaidTextArea = document.getElementById('mermaidTextArea');
+  const modelEditor = document.getElementById('modelEditor');
+  const modelLabel = document.getElementById('modelLabel');
 
   const diagramContainer = document.getElementById('diagramContainer');
+  const modelModal = new bootstrap.Modal(document.getElementById('modelModal'));
 
-  convertButton.addEventListener('click', convert);
+  window.__APP__ = { ...window.__APP__, modelModal, modelEditor };
 
-  function convert() {
+  convertButton.addEventListener('click', load);
+  modelEditor.addEventListener('submit', save);
+  modelModal._element.addEventListener('show.bs.modal', populateModal);
+
+  function load() {
     try {
       const source = rsdlTextArea.value;
       const { rsdljs, errors } = getRsdl(source);
@@ -22,7 +34,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
       console.info(rsdljs);
 
-      window.__RSDLJS__ = rsdljs;
+      window.__APP__.rsdljs = rsdljs;
 
       const mermaidText = getMermaid(rsdljs);
       mermaidTextArea.value = mermaidText;
@@ -32,7 +44,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
       mermaid.initialize({
         securityLevel: 'loose',
-        logLevel: 1,
+        // logLevel: 1,
       });
 
       mermaid.init(undefined, diagramContainer);
@@ -41,12 +53,29 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   }
 
-  convert();
+  function save(event) {
+    event.preventDefault();
+    // Validate
+
+    console.log(modelEditor.innerHTML);
+    console.log(modelModal.model);
+
+    modelModal.hide();
+  }
+
+  function populateModal() {
+    const model = modelModal.model;
+    modelLabel.innerHTML = model.$Kind;
+    const contents = getEditor(model);
+    modelEditor.innerHTML = contents;
+  }
+
+  load();
 });
 
 window.selectElement = function (name) {
-  const rsdljs = window.__RSDLJS__;
-  if (!rsdljs || !rsdljs.Model) {
+  const { rsdljs, modelModal, modelEditor } = window.__APP__;
+  if (!rsdljs || !rsdljs.Model || !modelModal) {
     return;
   }
 
@@ -55,9 +84,44 @@ window.selectElement = function (name) {
     return;
   }
 
+  element.$Name = name;
   console.log(element);
-  // TODO: Popup editor.
+
+  modelModal.model = element;
+  modelModal.show();
 };
+
+window.addEnumMember = function(button) {
+  const template = document.createElement('template');
+  template.innerHTML = enumMemberFunction().trim();
+  const member = template.content.firstChild;
+  button.insertAdjacentElement('beforebegin', member);
+}
+
+window.removeEnumMember = function(button) {
+  const member = button.parentNode;
+  member.parentNode.removeChild(member);
+}
+
+function getEditor(model) {
+  switch (model.$Kind) {
+    case 'EnumType':
+      return getEnumEditor(model);
+    case 'ComplexType':
+    case 'EntityType':
+    case 'EntityContainer':
+    default:
+      return `<pre>${JSON.stringify(model, null, 2)}</pre>`;
+  }
+}
+
+function getEnumEditor(enumType) {
+  const enumMembers = Object.entries(enumType)
+    .filter(([name, _]) => name[0] !== '$')
+    .map(([name, _]) => name);
+
+  return enumTypeFunction({ ...enumType, enumMembers });
+}
 
 function getRsdl(rsdlText) {
   try {
