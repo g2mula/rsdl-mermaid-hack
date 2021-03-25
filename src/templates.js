@@ -60,29 +60,29 @@ const propertyTemplate = `
 <div class="input-group mb-3 data-row-container">
     {{#ifEquals $StructuredKind "EntityType"}}
     <div class="input-group-text">
-        <input class="form-radio-input mt-0" type="radio" name="pk" aria-label="Is PK" {{#if property.isPk}}checked{{/if}}>
+        <input class="form-check-input mt-0 pk-data" type="checkbox" aria-label="Is PK" {{#if property.isPk}}checked{{/if}}>
     </div>
     {{/ifEquals}}
     {{#unless $NoName}}
     <input
         type="text"
-        class="form-control"
+        class="form-control name-data"
         placeholder="property"
         value="{{property.name}}"
         required
         pattern="^([a-zA-Z_][a-zA-Z\\d_]*)$"
         title="Please provide a valid identifier">
     {{/unless}}
-    <select class="form-select">
+    <select class="form-select type-data">
         {{#each $TypeOptions}}
         <option value="{{this}}" {{#ifEquals this ../property.type}}selected{{/ifEquals}}>{{this}}</option>
         {{/each}}
     </select>
     <div class="input-group-text">
-        <input class="form-check-input mt-0" type="checkbox" value="isCollection" aria-label="Is Collection" {{#if property.isCollection}}checked{{/if}}>
+        <input class="form-check-input mt-0 collection-data" type="checkbox" value="isCollection" aria-label="Is Collection" {{#if property.isCollection}}checked{{/if}}>
     </div>
     <div class="input-group-text">
-        <input class="form-check-input mt-0" type="checkbox" value="isNullable" aria-label="Is Nullable" {{#if property.isNullable}}checked{{/if}}>
+        <input class="form-check-input mt-0 nullable-data" type="checkbox" value="isNullable" aria-label="Is Nullable" {{#if property.isNullable}}checked{{/if}}>
     </div>
     <button type="button" class="btn btn-danger" aria-label="remove" onclick="removeDataRow(this)">&times;</button>
 </div>
@@ -116,13 +116,13 @@ const operationTemplate = `
             <div class="input-group mb-3">
                 <input
                     type="text"
-                    class="form-control"
+                    class="form-control operation-name-data"
                     placeholder="property"
                     value="{{operation.$Name}}"
                     required
                     pattern="^([a-zA-Z_][a-zA-Z\\d_]*)$"
                     title="Please provide a valid identifier">
-                <select class="form-select">
+                <select class="form-select operation-type-data">
                     <option value="Function" {{#ifEquals operation.$Kind "Function"}}selected{{/ifEquals}}>Function</option>
                     <option value="Action" {{#ifEquals operation.$Kind "Action"}}selected{{/ifEquals}}>Action</option>
                 </select>
@@ -135,7 +135,7 @@ const operationTemplate = `
                         <input 
                             type="checkbox"
                             id="hasReturns_{{$Index}}"
-                            class="form-check-input"
+                            class="form-check-input has-return-data"
                             {{#if $ReturnType}}checked{{/if}}
                             data-bs-toggle="collapse"
                             data-bs-target="#operationReturnContainer_{{$Index}}"
@@ -148,21 +148,23 @@ const operationTemplate = `
                     </div>
                 </div>
                 <div class="flex-grow-1">
-                    <div id="operationReturnContainer_{{$Index}}" class="collapse {{#if $ReturnType}}show{{/if}}">
+                    <div id="operationReturnContainer_{{$Index}}" class="return-type-container collapse {{#if $ReturnType}}show{{/if}}">
                     {{>property $Index=-7 $NoName=true property=$ReturnType $TypeOptions=$TypeOptions $StructuredKind=operation.$Kind}}
                     </div>
                 </div>
             </div>
 
             <h6>Parameters</h6>
-            {{#each $InputParameters}}
-            {{>property $Index=@index property=this $TypeOptions=../$TypeOptions $StructuredKind=../operation.$Kind}}
-            {{/each}}
 
-            <div class="d-grid gap-2">
-                <button type="button" class="btn btn-info" data-structured-kind="{{operation.$Kind}} "onclick="addInputParameter(this)">Add</button>
-            </div>
-                    
+            <div class="input-parameters-container">
+                {{#each $InputParameters}}
+                {{>property $Index=@index property=this $TypeOptions=../$TypeOptions $StructuredKind=../operation.$Kind}}
+                {{/each}}
+
+                <div class="d-grid gap-2">
+                    <button type="button" class="btn btn-info" data-structured-kind="{{operation.$Kind}} "onclick="addInputParameter(this)">Add</button>
+                </div>
+            </div>                    
         </div>
     </div>
 
@@ -189,26 +191,28 @@ const structuredTypeTemplate = `
 </div>
 
 <h6>Propeties</h6>
-{{#each $Properties}}
-{{>property $Index=@index property=this $TypeOptions=../$TypeOptions $StructuredKind=../$Kind}}
-{{/each}}
+<div id="propertiesContainer">
+    {{#each $Properties}}
+    {{>property $Index=@index property=this $TypeOptions=../$TypeOptions $StructuredKind=../$Kind}}
+    {{/each}}
 
-<div class="d-grid gap-2">
-    <button type="button" class="btn btn-info" data-structured-kind="{{$Kind}}" onclick="addProperty(this)">Add</button>
+    <div class="d-grid gap-2">
+        <button type="button" class="btn btn-info" data-structured-kind="{{$Kind}}" onclick="addProperty(this)">Add</button>
+    </div>
 </div>
 
 {{#ifEquals $Kind "EntityType"}}
 <h6>Operations</h6>
 <div id="operationsContainer" class="accordion">
 
-{{#each $Operations}}
-{{>operation $Index=@index operation=this $TypeOptions=../$TypeOptions}}
-{{/each}}
+    {{#each $Operations}}
+    {{>operation $Index=@index operation=this $TypeOptions=../$TypeOptions}}
+    {{/each}}
 
-</div>
+    <div class="d-grid gap-2">
+        <button type="button" class="btn btn-info" data-structured-kind="{{$Kind}}" onclick="addOperation(this)">Add</button>
+    </div>
 
-<div class="d-grid gap-2">
-    <button type="button" class="btn btn-info" data-structured-kind="{{$Kind}}" onclick="addOperation(this)">Add</button>
 </div>
 
 {{/ifEquals}}
@@ -233,14 +237,15 @@ const entityContainerTemplate = `
         required
         pattern="^([a-zA-Z_][a-zA-Z\\d_]*)$"
         title="Please provide a valid identifier">
-    {{log 'Name is ' this}}
 </div>
 
 <h6>Navigation Sources</h6>
 
-{{#each $NavigationSources}}
-{{>property $Index=@index property=this $TypeOptions=../$EntityTypes $StructuredKind=../$Kind}}
-{{/each}}
+<div id="navigationSourcesContainer">
+    {{#each $NavigationSources}}
+    {{>property $Index=@index property=this $TypeOptions=../$EntityTypes $StructuredKind=../$Kind}}
+    {{/each}}
+</div>
 
 <div class="d-grid gap-2">
     <button type="button" class="btn btn-info" data-structured-kind="{{$Kind}}" onclick="addNavigationSource(this)">Add</button>

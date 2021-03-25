@@ -154,6 +154,7 @@ document.addEventListener('DOMContentLoaded', function () {
   function addEntityContainer() {
     show({
       $Kind: 'EntityContainer',
+      $Name: 'Service',
       '': {},
     });
   }
@@ -220,7 +221,7 @@ function addDataRow(button, templateFunction, props) {
     ...props,
   }).trim();
   const dataRow = template.content.firstChild;
-  button.insertAdjacentElement('beforebegin', dataRow);
+  button.parentNode.insertAdjacentElement('beforebegin', dataRow);
 }
 
 function getModel(editor, $Kind) {
@@ -239,7 +240,7 @@ function getModel(editor, $Kind) {
 
 function getEnumType(enumEditor) {
   const name = enumEditor.querySelector('#nameInput').value;
-  const members = [
+  const enumType = [
     ...enumEditor.querySelectorAll('#enumMembersContainer input[type=text]'),
   ]
     .map((element) => element.value)
@@ -254,12 +255,136 @@ function getEnumType(enumEditor) {
       }
     );
 
-  return members;
+  return enumType;
 }
 
-function getStructuredType(structuredTypeEditor) {}
+function getStructuredType(structuredTypeEditor, $Kind) {
+  const name = structuredTypeEditor.querySelector('#nameInput').value;
+  const properties = [
+    ...structuredTypeEditor.querySelectorAll(
+      '#propertiesContainer > div.data-row-container'
+    ),
+  ].map((element) => getPropertyFromEditor(element));
 
-function getEntityContainer(entityContainerEditor) {}
+  const operations = [
+    ...structuredTypeEditor.querySelectorAll(
+      '#operationsContainer > div.data-row-container'
+    ),
+  ].map((element) => getOperation(element, name));
+
+  const structuredType = properties.reduce(
+    (accumulator, item) => {
+      accumulator[item.$Name] = item;
+      return accumulator;
+    },
+    {
+      $Kind,
+      $Name: name,
+    }
+  );
+
+  if ($Kind === 'EntityType') {
+    structuredType.$Operations = operations;
+    structuredType.$Key = properties.filter((p) => p.$IsPk).map((p) => p.$Name);
+  }
+
+  return structuredType;
+}
+
+function getEntityContainer(entityContainerEditor) {
+  const name = enumEditor.querySelector('#nameInput').value;
+  const entityContainer = [
+    ...entityContainerEditor.querySelectorAll(
+      '#navigationSourcesContainer > div.data-row-container'
+    ),
+  ]
+    .map((element) => getPropertyFromEditor(element))
+    .reduce(
+      (accumulator, item) => {
+        accumulator[item.$Name] = item;
+        return accumulator;
+      },
+      {
+        $Kind: 'EntityContainer',
+        $Name: name,
+      }
+    );
+
+  return entityContainer;
+}
+
+function getOperation(operationEditor, bindingTypeName) {
+  const nameInput = operationEditor.querySelector(
+    'input[type=text].operation-name-data'
+  );
+  const typeInput = operationEditor.querySelector('select.operation-type-data');
+  const hasReturnInput = operationEditor.querySelector(
+    'input[type=checkbox].has-return-data'
+  );
+  const returnTypeDataRow = operationEditor.querySelector(
+    'div.return-type-container > div.data-row-container'
+  );
+  const inputParameters = [
+    ...operationEditor.querySelectorAll(
+      'div.input-parameters-container > div.data-row-container'
+    ),
+  ].map((element) => getPropertyFromEditor(element));
+
+  const operation = {
+    $Name: nameInput.value,
+    $Kind: typeInput.value,
+    $IsBound: true,
+    $Parameter: [
+      {
+        $Name: 'this',
+        $Type: bindingTypeName,
+      },
+      ...inputParameters,
+    ],
+  };
+
+  if (hasReturnInput && hasReturnInput.checked) {
+    const returnProperty = getPropertyFromEditor(returnTypeDataRow);
+    operation.$ReturnType = returnProperty.$Type;
+  }
+
+  return operation;
+}
+
+function getPropertyFromEditor(element) {
+  const pkInput = element.querySelector('input[type=checkbox].pk-data');
+  const nameInput = element.querySelector('input[type=text].name-data');
+  const typeInput = element.querySelector('select.type-data');
+  const collectionInput = element.querySelector(
+    'input[type=checkbox].collection-data'
+  );
+  const nullableInput = element.querySelector(
+    'input[type=checkbox].nullable-data'
+  );
+
+  const property = {};
+  if (pkInput && pkInput.checked) {
+    property.$IsPk = true;
+  }
+
+  if (nameInput) {
+    property.$Name = nameInput.value;
+  }
+
+  if (typeInput) {
+    property.$Type = typeInput.value;
+  }
+
+  if (collectionInput && collectionInput.checked) {
+    property.$Collection = true;
+  }
+
+  if (nullableInput && nullableInput.checked) {
+    property.$Nullable = true;
+  }
+
+  return property;
+}
 
 function getEditor(model, rsdljs) {
   switch (model.$Kind) {
