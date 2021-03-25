@@ -16,9 +16,17 @@ window.__APP__ = window.__APP__ || {};
 document.addEventListener('DOMContentLoaded', function () {
   const convertButton = document.getElementById('convertButton');
   const rsdlTextArea = document.getElementById('rsdlTextArea');
+
   const mermaidTextArea = document.getElementById('mermaidTextArea');
   const modelEditor = document.getElementById('modelEditor');
   const modelLabel = document.getElementById('modelLabel');
+
+  const enumTypeButton = document.getElementById('enumTypeButton');
+  const complexTypeButton = document.getElementById('complexTypeButton');
+  const entityTypeButton = document.getElementById('entityTypeButton');
+  const entityContainerButton = document.getElementById(
+    'entityContainerButton'
+  );
 
   const diagramContainer = document.getElementById('diagramContainer');
   const modelModal = new bootstrap.Modal(document.getElementById('modelModal'));
@@ -29,6 +37,11 @@ document.addEventListener('DOMContentLoaded', function () {
     modelEditor,
     globalIndex: 1000,
   };
+
+  enumTypeButton.addEventListener('click', addEnum);
+  complexTypeButton.addEventListener('click', addComplexType);
+  entityTypeButton.addEventListener('click', addEntityType);
+  entityContainerButton.addEventListener('click', addEntityContainer);
 
   convertButton.addEventListener('click', load);
   modelEditor.addEventListener('submit', save);
@@ -45,6 +58,12 @@ document.addEventListener('DOMContentLoaded', function () {
       }
 
       console.info(rsdljs);
+
+      if (rsdljs.$EntityContainer) {
+        entityContainerButton.classList.add('d-none');
+      } else {
+        entityContainerButton.classList.remove('d-none');
+      }
 
       window.__APP__.rsdljs = rsdljs;
 
@@ -99,19 +118,44 @@ document.addEventListener('DOMContentLoaded', function () {
 
     rsdljs.Model = Object.fromEntries(entries);
 
-    // console.log([existingModel, editorModel]);
-
-    // if (fullModel[existingModel.$Name]) {
-    //   delete fullModel[existingModel.$Name];
-    // }
-
-    // fullModel[editorModel.$Name] = editorModel;
-
     const rsdlText = getRsdlText(rsdljs);
 
     rsdlTextArea.value = rsdlText.trim();
 
     modelModal.hide();
+  }
+
+  function show(element) {
+    modelModal.model = element;
+    modelModal.show();
+  }
+
+  function addEnum() {
+    show({
+      $Kind: 'EnumType',
+      '': 0,
+    });
+  }
+
+  function addComplexType() {
+    show({
+      $Kind: 'ComplexType',
+      '': {},
+    });
+  }
+
+  function addEntityType() {
+    show({
+      $Kind: 'EntityType',
+      '': {},
+    });
+  }
+
+  function addEntityContainer() {
+    show({
+      $Kind: 'EntityContainer',
+      '': {},
+    });
   }
 
   function populateModal() {
