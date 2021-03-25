@@ -1,12 +1,17 @@
 import Handlebars from 'handlebars';
 
-Handlebars.registerHelper('ifEquals', function(arg1, arg2, options) {
-    return (arg1 == arg2) ? options.fn(this) : options.inverse(this);
+Handlebars.registerHelper('ifEquals', function (arg1, arg2, options) {
+  return arg1 == arg2 ? options.fn(this) : options.inverse(this);
 });
+
+Handlebars.registerHelper('addOne', function (value) {
+  return parseInt(value) + 1;
+});
+
 const enumMemberTemplate = `
-<div class="input-group mb-3">
-    <input type="text" class="form-control" placeholder="enumMember" value="{{this}}" />
-    <button type="button" class="btn btn-danger" aria-label="remove" onclick="removeEnumMember(this)">&times;</button>
+<div class="input-group mb-3 data-row-container">
+    <input type="text" class="form-control" placeholder="enumMember" value="{{member}}" />
+    <button type="button" class="btn btn-danger" aria-label="remove" onclick="removeDataRow(this)">&times;</button>
 </div>
 `;
 
@@ -21,7 +26,7 @@ const enumTypeTemplate = `
 
 <h6>Members</h6>
 {{#each enumMembers}}
-{{>enumMember}}
+{{>enumMember $Index=@index member=this}}
 {{/each}}
 
 <div class="d-grid gap-2">
@@ -31,19 +36,21 @@ const enumTypeTemplate = `
 
 export const enumTypeFunction = Handlebars.compile(enumTypeTemplate);
 
-
 // Structure Type
 
-const structuredPropertyTemplate = `
-<div class="input-group mb-3">
+const propertyTemplate = `
+<div class="input-group mb-3 data-row-container">
+
     {{#ifEquals structuredKind "EntityType"}}
     <div class="input-group-text">
         <input class="form-radio-input mt-0" type="radio" name="pk" aria-label="Is PK" {{#if property.isPk}}checked{{/if}}>
     </div>
     {{/ifEquals}}
+    {{#unless $NoName}}
     <input type="text" class="form-control" placeholder="property" value="{{property.name}}" />
+    {{/unless}}
     <select class="form-select">
-        {{#each typeOptions}}
+        {{#each $TypeOptions}}
         <option value="{{this}}" {{#ifEquals this ../property.type}}selected{{/ifEquals}}>{{this}}</option>
         {{/each}}
     </select>
@@ -53,22 +60,83 @@ const structuredPropertyTemplate = `
     <div class="input-group-text">
         <input class="form-check-input mt-0" type="checkbox" value="isNullable" aria-label="Is Nullable" {{#if property.isNullable}}checked{{/if}}>
     </div>
-    <button type="button" class="btn btn-danger" aria-label="remove" onclick="removeProperty(this)">&times;</button>
+    <button type="button" class="btn btn-danger" aria-label="remove" onclick="removeDataRow(this)">&times;</button>
 </div>
 `;
 
-Handlebars.registerPartial('structuredProperty', structuredPropertyTemplate);
-export const structuredPropertyFunction = Handlebars.compile(structuredPropertyTemplate);
+Handlebars.registerPartial('property', propertyTemplate);
+export const propertyFunction = Handlebars.compile(propertyTemplate);
 
 const operationTemplate = `
-<div class="input-group mb-3">
-    <input type="text" class="form-control" placeholder="property" value="{{$Name}}" />
-    <select class="form-select">
-        <option value="Function" {{#ifEquals $Kind "Function"}}selected{{/ifEquals}}>Function</option>
-        <option value="Action" {{#ifEquals $Kind "Action"}}selected{{/ifEquals}}>Action</option>
-    </select>
-    <button type="button" class="btn btn-danger" aria-label="remove" onclick="removeOperation(this)">&times;</button>
+<div class="accordion-item data-row-container">
+    <h2  id="operation_header_{{$Index}}" class="accordion-header">
+        <button 
+            type="button"
+            class="accordion-button collapsed"
+            data-bs-toggle="collapse"
+            data-bs-target="#operation_collapse_{{$Index}}"
+            aria-expanded="false"
+            aria-controls="operation_collapse_{{$Index}}"
+            >
+            Operation #{{ addOne $Index }}
+        </button>
+    </h2>
+    <div 
+        id="operation_collapse_{{$Index}}"
+        class="accordion-collapse collapse"
+        aria-labelledby="operation_header_{{$Index}}"
+        data-bs-parent="#operationsContainer"
+        >
+        <div class="accordion-body">
+
+            <div class="input-group mb-3">
+                <input type="text" class="form-control" placeholder="property" value="{{operation.$Name}}" />
+                <select class="form-select">
+                    <option value="Function" {{#ifEquals operation.$Kind "Function"}}selected{{/ifEquals}}>Function</option>
+                    <option value="Action" {{#ifEquals operation.$Kind "Action"}}selected{{/ifEquals}}>Action</option>
+                </select>
+                <button type="button" class="btn btn-danger" aria-label="remove" onclick="removeDataRow(this)">&times;</button>
+            </div>
+
+            <div class="d-flex">
+                <div class="p-2">
+                    <div class="form-check form-switch">
+                        <input 
+                            type="checkbox"
+                            id="hasReturns_{{$Index}}"
+                            class="form-check-input"
+                            {{#if $ReturnType}}checked{{/if}}
+                            data-bs-toggle="collapse"
+                            data-bs-target="#operationReturnContainer_{{$Index}}"
+                            aria-expanded="{{#if $ReturnType}}true{{else}}false{{/if}}"
+                            aria-controls="operationReturnContainer"
+                            >
+                        <label for="hasReturns_{{$Index}}" class="form-check-label">
+                            <h6>Returns</h6>
+                        </label>
+                    </div>
+                </div>
+                <div class="flex-grow-1">
+                    <div id="operationReturnContainer_{{$Index}}" class="collapse {{#if $ReturnType}}show{{/if}}">
+                    {{>property $Index=-7 $NoName=true property=$ReturnType $TypeOptions=$TypeOptions structuredKind=operation.$Kind}}
+                    </div>
+                </div>
+            </div>
+
+            <h6>Parameters</h6>
+            {{#each $InputParameters}}
+            {{>property $Index=@index property=this $TypeOptions=../$TypeOptions structuredKind=../operation.$Kind}}
+            {{/each}}
+
+            <div class="d-grid gap-2">
+                <button type="button" class="btn btn-info" onclick="addInputParameter(this)">Add</button>
+            </div>
+                    
+        </div>
+    </div>
+
 </div>
+
 `;
 
 Handlebars.registerPartial('operation', operationTemplate);
@@ -82,7 +150,7 @@ const structuredTypeTemplate = `
 
 <h6>Propeties</h6>
 {{#each $Properties}}
-{{>structuredProperty property=this typeOptions=../$TypeOptions structuredKind=../$Kind}}
+{{>property $Index=@index property=this $TypeOptions=../$TypeOptions structuredKind=../$Kind}}
 {{/each}}
 
 <div class="d-grid gap-2">
@@ -91,15 +159,21 @@ const structuredTypeTemplate = `
 
 {{#ifEquals $Kind "EntityType"}}
 <h6>Operations</h6>
+<div id="operationsContainer" class="accordion">
+
 {{#each $Operations}}
-{{>operation}}
+{{>operation $Index=@index operation=this $TypeOptions=../$TypeOptions}}
 {{/each}}
 
+</div>
+
 <div class="d-grid gap-2">
-    <button type="button" class="btn btn-info" onclick="addProperty(this)">Add</button>
+    <button type="button" class="btn btn-info" onclick="addOperation(this)">Add</button>
 </div>
 
 {{/ifEquals}}
 `;
 
-export const structuredTypeFunction = Handlebars.compile(structuredTypeTemplate);
+export const structuredTypeFunction = Handlebars.compile(
+  structuredTypeTemplate
+);

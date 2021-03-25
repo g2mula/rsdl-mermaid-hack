@@ -4,7 +4,7 @@ import mermaid from 'mermaid';
 import {
   enumTypeFunction,
   enumMemberFunction,
-  structuredPropertyFunction,
+  propertyFunction,
   structuredTypeFunction,
   operationFunction,
 } from './templates';
@@ -22,7 +22,12 @@ document.addEventListener('DOMContentLoaded', function () {
   const diagramContainer = document.getElementById('diagramContainer');
   const modelModal = new bootstrap.Modal(document.getElementById('modelModal'));
 
-  window.__APP__ = { ...window.__APP__, modelModal, modelEditor };
+  window.__APP__ = {
+    ...window.__APP__,
+    modelModal,
+    modelEditor,
+    globalIndex: 1000,
+  };
 
   convertButton.addEventListener('click', load);
   modelEditor.addEventListener('submit', save);
@@ -97,16 +102,26 @@ window.selectElement = function (name) {
   modelModal.show();
 };
 
-window.addEnumMember = function (button) {
-  const template = document.createElement('template');
-  template.innerHTML = enumMemberFunction().trim();
-  const member = template.content.firstChild;
-  button.insertAdjacentElement('beforebegin', member);
-};
+window.addEnumMember = (button) => addDataRow(button, enumMemberFunction);
+window.addProperty = (button) => addDataRow(button, propertyFunction);
+window.addOperation = (button) => addDataRow(button, operationFunction);
+window.addInputParameter = (button) => addDataRow(button, propertyFunction);
 
-window.removeEnumMember = function (button) {
-  const member = button.parentNode;
-  member.parentNode.removeChild(member);
+function addDataRow(button, templateFunction) {
+  const index = window.__APP__.globalIndex++;
+
+  const template = document.createElement('template');
+  template.innerHTML = templateFunction({
+    $Index: index,
+    $TypeOptions,
+  }).trim();
+  const dataRow = template.content.firstChild;
+  button.insertAdjacentElement('beforebegin', dataRow);
+}
+
+window.removeDataRow = function (button) {
+  const dataRow = button.closest('.data-row-container');
+  dataRow.parentNode.removeChild(dataRow);
 };
 
 function getEditor(model) {
@@ -179,6 +194,21 @@ function getNormalizedRsdl(rsdljs) {
       if (type) {
         type.$Operations = type.$Operations || [];
         op.$Name = key;
+        op.$InputParameters = op.$Parameter.slice(1).map((p) => ({
+          name: p.$Name,
+          type: (p.$Type || 'String').split('.').pop(),
+          isCollection: p.$Collection,
+          isNullable: p.$Nullable,
+        }));
+        if (op.$ReturnType) {
+          op.$ReturnType = {
+            ...op.$ReturnType,
+            name: op.$ReturnType.$Name,
+            type: (op.$ReturnType.$Type || 'String').split('.').pop(),
+            isCollection: op.$ReturnType.$Collection,
+            isNullable: op.$ReturnType.$Nullable,
+          };
+        }
         type.$Operations.push(op);
       }
     });
