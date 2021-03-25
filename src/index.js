@@ -7,6 +7,7 @@ import {
   propertyFunction,
   structuredTypeFunction,
   operationFunction,
+  entityContainerFunction,
 } from './templates';
 
 const $TypeOptions = ['String', 'Int32', 'Boolean'];
@@ -36,7 +37,7 @@ document.addEventListener('DOMContentLoaded', function () {
   function load() {
     try {
       const source = rsdlTextArea.value;
-      const { rsdljs, errors } = getRsdl(source);
+      const { rsdljs, errors } = getRsdlJs(source);
 
       if (errors) {
         errors.map((error) => console.error(error));
@@ -66,19 +67,60 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function save(event) {
     event.preventDefault();
-    // Validate
+    event.stopPropagation();
+    if (!modelEditor.checkValidity()) {
+      modelEditor.classList.add('was-validated');
+      console.log('Not valid');
+      return;
+    }
 
-    console.log(modelEditor.innerHTML);
-    console.log(modelModal.model);
+    // Validate
+    // updateModel(rsdljs, modelModal.model, editorModel);
+
+    // console.log(modelEditor.innerHTML);
+    // console.log(modelModal.model);
+
+    const editorModel = getModel(modelEditor, modelModal.model.$Kind);
+    const { rsdljs } = window.__APP__;
+    const existingModel = modelModal.model;
+
+    const entries = Object.entries(rsdljs.Model);
+    const existingModelIndex = entries.findIndex(
+      (e) => e[0] == existingModel.$Name
+    );
+
+    const editorModelEntry = [editorModel.$Name, editorModel];
+
+    if (existingModelIndex >= 0) {
+      entries.splice(existingModelIndex, 1, editorModelEntry);
+    } else {
+      entries.push(editorModelEntry);
+    }
+
+    rsdljs.Model = Object.fromEntries(entries);
+
+    // console.log([existingModel, editorModel]);
+
+    // if (fullModel[existingModel.$Name]) {
+    //   delete fullModel[existingModel.$Name];
+    // }
+
+    // fullModel[editorModel.$Name] = editorModel;
+
+    const rsdlText = getRsdlText(rsdljs);
+
+    rsdlTextArea.value = rsdlText.trim();
 
     modelModal.hide();
   }
 
   function populateModal() {
+    const { rsdljs } = window.__APP__;
     const model = modelModal.model;
     modelLabel.innerHTML = model.$Kind;
-    const contents = getEditor(model);
+    const contents = getEditor(model, rsdljs);
     modelEditor.innerHTML = contents;
+    modelEditor.classList.remove('was-validated');
   }
 
   load();
@@ -106,38 +148,90 @@ window.addEnumMember = (button) => addDataRow(button, enumMemberFunction);
 window.addProperty = (button) => addDataRow(button, propertyFunction);
 window.addOperation = (button) => addDataRow(button, operationFunction);
 window.addInputParameter = (button) => addDataRow(button, propertyFunction);
+window.addNavigationSource = (button) => {
+  const { rsdljs } = window.__APP__;
+  const $TypeOptions = Object.entries(rsdljs.Model)
+    .filter(([name, item]) => name[0] !== '$' && item.$Kind === 'EntityType')
+    .map(([name, _]) => name);
 
-function addDataRow(button, templateFunction) {
-  const index = window.__APP__.globalIndex++;
-
-  const template = document.createElement('template');
-  template.innerHTML = templateFunction({
-    $Index: index,
-    $TypeOptions,
-  }).trim();
-  const dataRow = template.content.firstChild;
-  button.insertAdjacentElement('beforebegin', dataRow);
-}
+  return addDataRow(button, propertyFunction, { $TypeOptions });
+};
 
 window.removeDataRow = function (button) {
   const dataRow = button.closest('.data-row-container');
   dataRow.parentNode.removeChild(dataRow);
 };
 
-function getEditor(model) {
-  switch (model.$Kind) {
+function addDataRow(button, templateFunction, props) {
+  const index = window.__APP__.globalIndex++;
+  const template = document.createElement('template');
+  if (!props) {
+    props = {};
+  }
+
+  template.innerHTML = templateFunction({
+    $Index: index,
+    $TypeOptions,
+    $StructuredKind: button.dataset.structuredKind,
+    ...props,
+  }).trim();
+  const dataRow = template.content.firstChild;
+  button.insertAdjacentElement('beforebegin', dataRow);
+}
+
+function getModel(editor, $Kind) {
+  switch ($Kind) {
     case 'EnumType':
-      return getEnumEditor(model);
+      return getEnumType(editor);
     case 'ComplexType':
     case 'EntityType':
-      return getStructuredEditor(model);
+      return getStructuredType(editor, $Kind);
     case 'EntityContainer':
+      return getEntityContainer(editor);
+    default:
+      return {};
+  }
+}
+
+function getEnumType(enumEditor) {
+  const name = enumEditor.querySelector('#nameInput').value;
+  const members = [
+    ...enumEditor.querySelectorAll('#enumMembersContainer input[type=text]'),
+  ]
+    .map((element) => element.value)
+    .reduce(
+      (accumulator, item, index) => {
+        accumulator[item] = index;
+        return accumulator;
+      },
+      {
+        $Kind: 'EnumType',
+        $Name: name,
+      }
+    );
+
+  return members;
+}
+
+function getStructuredType(structuredTypeEditor) {}
+
+function getEntityContainer(entityContainerEditor) {}
+
+function getEditor(model, rsdljs) {
+  switch (model.$Kind) {
+    case 'EnumType':
+      return getEnumEditor(model, rsdljs);
+    case 'ComplexType':
+    case 'EntityType':
+      return getStructuredEditor(model, rsdljs);
+    case 'EntityContainer':
+      return getEntityContainerEditor(model, rsdljs);
     default:
       return `<pre>${JSON.stringify(model, null, 2)}</pre>`;
   }
 }
 
-function getEnumEditor(enumType) {
+function getEnumEditor(enumType, rsdljs) {
   const enumMembers = Object.entries(enumType)
     .filter(([name, _]) => name[0] !== '$')
     .map(([name, _]) => name);
@@ -145,7 +239,7 @@ function getEnumEditor(enumType) {
   return enumTypeFunction({ ...enumType, enumMembers });
 }
 
-function getStructuredEditor(structuredType) {
+function getStructuredEditor(structuredType, rsdljs) {
   const $Properties = Object.entries(structuredType)
     .filter(([name, _]) => name[0] !== '$')
     .map(([name, property]) => ({
@@ -163,14 +257,35 @@ function getStructuredEditor(structuredType) {
   });
 }
 
-function getRsdl(rsdlText) {
+function getEntityContainerEditor(entityContainer, rsdljs) {
+  const $NavigationSources = Object.entries(entityContainer)
+    .filter(([name, _]) => name[0] !== '$')
+    .map(([name, property]) => ({
+      name,
+      type: (property.$Type || 'String').split('.').pop(),
+      isCollection: property.$Collection,
+      isNullable: property.$Nullable,
+    }));
+
+  const $EntityTypes = Object.entries(rsdljs.Model)
+    .filter(([name, item]) => name[0] !== '$' && item.$Kind === 'EntityType')
+    .map(([name, _]) => name);
+
+  return entityContainerFunction({
+    ...entityContainer,
+    $NavigationSources,
+    $EntityTypes,
+  });
+}
+
+function getRsdlJs(rsdlText) {
   try {
     const json = parse(rsdlText, () => () => '');
     if (json.$$errors) {
       return { errors: json.$$errors };
     }
 
-    var normalized = getNormalizedRsdl(json);
+    var normalized = getNormalizedRsdlJs(json);
 
     return { rsdljs: normalized };
   } catch (e) {
@@ -178,7 +293,7 @@ function getRsdl(rsdlText) {
   }
 }
 
-function getNormalizedRsdl(rsdljs) {
+function getNormalizedRsdlJs(rsdljs) {
   const copy = JSON.parse(JSON.stringify(rsdljs));
   const model = copy.Model;
   const edmOperations = Object.entries(model).filter(([key, edmElement]) =>
@@ -215,6 +330,110 @@ function getNormalizedRsdl(rsdljs) {
   });
 
   return copy;
+}
+
+function getRsdlText(rsdljs) {
+  return Object.entries(rsdljs.Model)
+    .map(([name, element]) => getRsdlElement(name, element))
+    .join('');
+}
+
+function getRsdlElement(name, edmElement) {
+  switch (edmElement.$Kind) {
+    case 'EnumType':
+      return getEnumTypeRsdl(name, edmElement);
+    case 'EntityType':
+      return getEntityTypeRsdl(name, edmElement);
+    case 'ComplexType':
+      return getComplexTypeRsdl(name, edmElement);
+    case 'EntityContainer':
+      return getEntityContainerRsdl(name, edmElement);
+    default:
+      return '';
+  }
+}
+
+function getEnumTypeRsdl(name, enumType) {
+  const members = Object.entries(enumType)
+    .map(([name]) => name)
+    .filter((name) => name[0] !== '$')
+    .join('\n    ');
+  return `
+enum ${name} {
+    ${members}
+}
+  `;
+}
+
+function getEntityTypeRsdl(name, entityType) {
+  return getStructuredTypeRsdl(name, entityType);
+}
+
+function getComplexTypeRsdl(name, complexType) {
+  return getStructuredTypeRsdl(name, complexType);
+}
+
+function getStructuredTypeRsdl(name, structuredType) {
+  const baseType = structuredType.$BaseType
+    ? ' extends ' + structuredType.$BaseType.split('.').pop()
+    : '';
+  const properties = getRsdlProperties(structuredType);
+  const operations = getRsdlOperations(structuredType.$Operations);
+
+  return `
+type ${name} ${baseType}{
+    ${properties + operations}
+}
+`;
+}
+
+function getRsdlOperations(operations) {
+  if (!operations || !operations.length) {
+    return '';
+  }
+
+  return (
+    '\n    ' +
+    operations
+      .map(
+        (op) =>
+          `${op.$Kind.toLowerCase()} ${op.$Name} (${getOperationParametersRsdl(
+            op.$Parameter.slice(1)
+          )}) ${op.$ReturnType ? ': ' + getType(op.$ReturnType) : ''}`
+      )
+      .join('\n    ')
+  );
+}
+
+function getEntityContainerRsdl(_name, entityContainer) {
+  return `
+service {
+    ${getRsdlProperties(entityContainer)}
+}
+  `;
+}
+
+function getOperationParametersRsdl(inputParameters) {
+  if (!inputParameters || !inputParameters.length) {
+    return '';
+  }
+
+  return inputParameters.map((p) => getPropertyRsdl(p.$Name, p)).join(', ');
+}
+
+function getPropertyRsdl(name, typeDef, keys) {
+  const type = getType(typeDef);
+  const keyPrefix = keys && keys.indexOf(name) >= 0 ? 'key ' : '';
+  return `${keyPrefix}${name}: ${type}`;
+}
+
+function getRsdlProperties(edmType) {
+  // TODO: Reuses mermaid property;
+  const keys = edmType.$Key;
+  return Object.entries(edmType)
+    .filter(([name, _]) => name[0] !== '$')
+    .map(([name, typeDef]) => getPropertyRsdl(name, typeDef, keys))
+    .join('\n    ');
 }
 
 function getMermaid(rsdljs) {
@@ -286,7 +505,7 @@ function getMermaidElement(name, edmElement) {
 function getElementContents(edmElement) {
   switch (edmElement.$Kind) {
     case 'EnumType':
-      return getEnumType(edmElement);
+      return getEnumTypeContents(edmElement);
     case 'EntityType':
       return getEntityTypeContents(edmElement);
     case 'ComplexType':
@@ -298,7 +517,7 @@ function getElementContents(edmElement) {
   }
 }
 
-function getEnumType(enumType) {
+function getEnumTypeContents(enumType) {
   return Object.entries(enumType)
     .filter(([name, _]) => name[0] !== '$')
     .map(([name, value]) => `${name}: ${value}`)
@@ -342,7 +561,7 @@ function getOperationsContents(operations) {
       .map(
         (op) =>
           `${op.$Name} (${getOperationParameters(op.$Parameter.slice(1))}) ${
-            op.$ReturnType ? getType(op.$ReturnType) : ''
+            op.$ReturnType ? '∶ ' + getType(op.$ReturnType) : ''
           }`
       )
       .join('\n\t\t')

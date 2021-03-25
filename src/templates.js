@@ -10,7 +10,14 @@ Handlebars.registerHelper('addOne', function (value) {
 
 const enumMemberTemplate = `
 <div class="input-group mb-3 data-row-container">
-    <input type="text" class="form-control" placeholder="enumMember" value="{{member}}" />
+    <input
+        type="text"
+        class="form-control"
+        placeholder="enumMember"
+        value="{{member}}"
+        required
+        pattern="^([a-zA-Z_][a-zA-Z\\d_]*)$"
+        title="Please provide a valid identifier">
     <button type="button" class="btn btn-danger" aria-label="remove" onclick="removeDataRow(this)">&times;</button>
 </div>
 `;
@@ -21,16 +28,27 @@ export const enumMemberFunction = Handlebars.compile(enumMemberTemplate);
 const enumTypeTemplate = `
 <div mb-3">
     <label for="name" class="form-label">Name</label>
-    <input type="text" id="nameInput" name="name" class="form-control" placeholder="name" value="{{$Name}}">
+    <input
+        type="text"
+        id="nameInput"
+        name="name"
+        class="form-control"
+        placeholder="name"
+        value="{{$Name}}"
+        required
+        pattern="^([a-zA-Z_][a-zA-Z\\d_]*)$"
+        title="Please provide a valid identifier">
 </div>
 
 <h6>Members</h6>
-{{#each enumMembers}}
-{{>enumMember $Index=@index member=this}}
-{{/each}}
+<div id="enumMembersContainer">
+    {{#each enumMembers}}
+    {{>enumMember $Index=@index member=this}}
+    {{/each}}
 
-<div class="d-grid gap-2">
-    <button type="button" class="btn btn-info" onclick="addEnumMember(this)">Add</button>
+    <div class="d-grid gap-2">
+        <button type="button" class="btn btn-info" data-structured-kind="{{$Kind}}" onclick="addEnumMember(this)">Add</button>
+    </div>
 </div>
 `;
 
@@ -40,14 +58,20 @@ export const enumTypeFunction = Handlebars.compile(enumTypeTemplate);
 
 const propertyTemplate = `
 <div class="input-group mb-3 data-row-container">
-
-    {{#ifEquals structuredKind "EntityType"}}
+    {{#ifEquals $StructuredKind "EntityType"}}
     <div class="input-group-text">
         <input class="form-radio-input mt-0" type="radio" name="pk" aria-label="Is PK" {{#if property.isPk}}checked{{/if}}>
     </div>
     {{/ifEquals}}
     {{#unless $NoName}}
-    <input type="text" class="form-control" placeholder="property" value="{{property.name}}" />
+    <input
+        type="text"
+        class="form-control"
+        placeholder="property"
+        value="{{property.name}}"
+        required
+        pattern="^([a-zA-Z_][a-zA-Z\\d_]*)$"
+        title="Please provide a valid identifier">
     {{/unless}}
     <select class="form-select">
         {{#each $TypeOptions}}
@@ -90,7 +114,14 @@ const operationTemplate = `
         <div class="accordion-body">
 
             <div class="input-group mb-3">
-                <input type="text" class="form-control" placeholder="property" value="{{operation.$Name}}" />
+                <input
+                    type="text"
+                    class="form-control"
+                    placeholder="property"
+                    value="{{operation.$Name}}"
+                    required
+                    pattern="^([a-zA-Z_][a-zA-Z\\d_]*)$"
+                    title="Please provide a valid identifier">
                 <select class="form-select">
                     <option value="Function" {{#ifEquals operation.$Kind "Function"}}selected{{/ifEquals}}>Function</option>
                     <option value="Action" {{#ifEquals operation.$Kind "Action"}}selected{{/ifEquals}}>Action</option>
@@ -118,18 +149,18 @@ const operationTemplate = `
                 </div>
                 <div class="flex-grow-1">
                     <div id="operationReturnContainer_{{$Index}}" class="collapse {{#if $ReturnType}}show{{/if}}">
-                    {{>property $Index=-7 $NoName=true property=$ReturnType $TypeOptions=$TypeOptions structuredKind=operation.$Kind}}
+                    {{>property $Index=-7 $NoName=true property=$ReturnType $TypeOptions=$TypeOptions $StructuredKind=operation.$Kind}}
                     </div>
                 </div>
             </div>
 
             <h6>Parameters</h6>
             {{#each $InputParameters}}
-            {{>property $Index=@index property=this $TypeOptions=../$TypeOptions structuredKind=../operation.$Kind}}
+            {{>property $Index=@index property=this $TypeOptions=../$TypeOptions $StructuredKind=../operation.$Kind}}
             {{/each}}
 
             <div class="d-grid gap-2">
-                <button type="button" class="btn btn-info" onclick="addInputParameter(this)">Add</button>
+                <button type="button" class="btn btn-info" data-structured-kind="{{operation.$Kind}} "onclick="addInputParameter(this)">Add</button>
             </div>
                     
         </div>
@@ -145,16 +176,25 @@ export const operationFunction = Handlebars.compile(operationTemplate);
 const structuredTypeTemplate = `
 <div mb-3">
     <label for="name" class="form-label">Name</label>
-    <input type="text" id="nameInput" name="name" class="form-control" placeholder="name" value="{{$Name}}">
+    <input
+        type="text"
+        id="nameInput"
+        name="name"
+        class="form-control"
+        placeholder="name"
+        value="{{$Name}}"
+        required
+        pattern="^([a-zA-Z_][a-zA-Z\\d_]*)$"
+        title="Please provide a valid identifier">
 </div>
 
 <h6>Propeties</h6>
 {{#each $Properties}}
-{{>property $Index=@index property=this $TypeOptions=../$TypeOptions structuredKind=../$Kind}}
+{{>property $Index=@index property=this $TypeOptions=../$TypeOptions $StructuredKind=../$Kind}}
 {{/each}}
 
 <div class="d-grid gap-2">
-    <button type="button" class="btn btn-info" onclick="addProperty(this)">Add</button>
+    <button type="button" class="btn btn-info" data-structured-kind="{{$Kind}}" onclick="addProperty(this)">Add</button>
 </div>
 
 {{#ifEquals $Kind "EntityType"}}
@@ -168,7 +208,7 @@ const structuredTypeTemplate = `
 </div>
 
 <div class="d-grid gap-2">
-    <button type="button" class="btn btn-info" onclick="addOperation(this)">Add</button>
+    <button type="button" class="btn btn-info" data-structured-kind="{{$Kind}}" onclick="addOperation(this)">Add</button>
 </div>
 
 {{/ifEquals}}
@@ -176,4 +216,37 @@ const structuredTypeTemplate = `
 
 export const structuredTypeFunction = Handlebars.compile(
   structuredTypeTemplate
+);
+
+// Entity Container
+const entityContainerTemplate = `
+<div mb-3">
+    <label for="name" class="form-label">Name</label>
+    <input
+        type="text"
+        id="nameInput"
+        name="name"
+        class="form-control"
+        placeholder="name"
+        value="{{$Name}}"
+        readonly
+        required
+        pattern="^([a-zA-Z_][a-zA-Z\\d_]*)$"
+        title="Please provide a valid identifier">
+    {{log 'Name is ' this}}
+</div>
+
+<h6>Navigation Sources</h6>
+
+{{#each $NavigationSources}}
+{{>property $Index=@index property=this $TypeOptions=../$EntityTypes $StructuredKind=../$Kind}}
+{{/each}}
+
+<div class="d-grid gap-2">
+    <button type="button" class="btn btn-info" data-structured-kind="{{$Kind}}" onclick="addNavigationSource(this)">Add</button>
+</div>
+`;
+
+export const entityContainerFunction = Handlebars.compile(
+  entityContainerTemplate
 );
