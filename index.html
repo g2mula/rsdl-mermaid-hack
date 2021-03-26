@@ -119,6 +119,7 @@ service
         <div
           id="modelModal"
           class="modal fade"
+          data-bs-backdrop="static"
           tabindex="-1"
           aria-labelledby="modelLabel"
           aria-hidden="true"
@@ -137,7 +138,15 @@ service
               <div class="modal-body">
                 <form id="modelEditor" novalidate></form>
               </div>
-              <div class="modal-footer">
+              <div class="modal-footer d-flex">
+                <button
+                  type="button"
+                  id="deleteElementButton"
+                  class="btn btn-danger me-auto"
+                >
+                  Delete
+                </button>
+
                 <button
                   type="button"
                   class="btn btn-secondary"
@@ -145,6 +154,7 @@ service
                 >
                   Close
                 </button>
+
                 <button
                   type="submit"
                   form="modelEditor"

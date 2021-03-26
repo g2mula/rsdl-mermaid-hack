@@ -27,6 +27,7 @@ document.addEventListener('DOMContentLoaded', function () {
   const entityContainerButton = document.getElementById(
     'entityContainerButton'
   );
+  const deleteElementButton = document.getElementById('deleteElementButton');
 
   const diagramContainer = document.getElementById('diagramContainer');
   const modelModal = new bootstrap.Modal(document.getElementById('modelModal'));
@@ -42,6 +43,8 @@ document.addEventListener('DOMContentLoaded', function () {
   complexTypeButton.addEventListener('click', addComplexType);
   entityTypeButton.addEventListener('click', addEntityType);
   entityContainerButton.addEventListener('click', addEntityContainer);
+
+  deleteElementButton.addEventListener('click', deleteElement);
 
   convertButton.addEventListener('click', load);
   modelEditor.addEventListener('submit', save);
@@ -118,11 +121,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     rsdljs.Model = Object.fromEntries(entries);
 
-    const rsdlText = getRsdlText(rsdljs);
-
-    rsdlTextArea.value = rsdlText.trim();
-
-    modelModal.hide();
+    updateRsdlText(rsdljs);
   }
 
   function show(element) {
@@ -157,6 +156,24 @@ document.addEventListener('DOMContentLoaded', function () {
       $Name: 'Service',
       '': {},
     });
+  }
+
+  function deleteElement() {
+    const { rsdljs } = window.__APP__;
+    const editorModel = modelModal.model;
+    if (rsdljs.Model[editorModel.$Name]) {
+      delete rsdljs.Model[editorModel.$Name];
+    }
+
+    updateRsdlText(rsdljs);
+  }
+
+  function updateRsdlText(rsdljs) {
+    const rsdlText = getRsdlText(rsdljs);
+    rsdlTextArea.value = rsdlText.trim();
+
+    modelModal.hide();
+    convertButton.click();
   }
 
   function populateModal() {
